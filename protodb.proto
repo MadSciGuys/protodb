@@ -1,0 +1,35 @@
+package protodb;
+
+message ProtoDB {
+	required string dbtitle = 1;
+	required uint32 fields = 2;
+}
+
+enum ProtoType {
+	Int    = 1; // Encoded as 'sint64'
+	Real   = 2; // Encoded as 'double'
+	String = 3; // Encoded as 'string'
+	Binary = 4; // Encoded as 'bytes'
+}
+
+message ProtoField {
+	required string fieldtitle   = 1;
+	required ProtoType fieldtype = 2 [default = Binary];
+	repeated uint32 vectorshape  = 3 [packed = true];
+}
+
+message ProtoInt {
+	required sint64 payloadint = 1;
+}
+
+message ProtoReal {
+	required double payloaddouble = 1;
+}
+
+message ProtoString {
+	required string payloadstring = 1;
+}
+
+message ProtoBinary {
+	required bytes parloadbytes = 1;
+}
