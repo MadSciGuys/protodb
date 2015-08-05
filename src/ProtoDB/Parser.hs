@@ -11,11 +11,15 @@ This module provides parsers for generating ProtoDB records from other data
 sources.
 -}
 
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, LambdaCase #-}
 
 module ProtoDB.Parser where
 
 import Control.Applicative
+
+import Control.DeepSeq
+
+import GHC.Generics (Generic)
 
 import Data.Int
 
@@ -44,7 +48,7 @@ data ParseCellType = ParseIntType
                    | ParseRealType
                    | ParseStringType
                    | ParseBinaryType
-                   deriving (Eq, Show)
+                   deriving (Eq, Ord, Show, Generic, NFData)
 
 cellType :: ParseCell -> ParseCellType
 cellType (ParseInt    _) = ParseIntType
@@ -53,28 +57,35 @@ cellType (ParseString _) = ParseStringType
 cellType (ParseBinary _) = ParseBinaryType
 
 parseProtoInt :: A.Parser ProtoInt
-parseProtoInt = ProtoInt <$> (A.decimal <* A.endOfInput)
+parseProtoInt = (ProtoInt . Just) <$> (A.decimal <* A.endOfInput)
 
 parseProtoReal :: A.Parser ProtoReal
-parseProtoReal = ProtoReal <$> A.choice [(noZero <* A.endOfInput), (A.double <* A.endOfInput)]
+parseProtoReal = (ProtoReal . Just) <$> A.choice [noZero, A.double] <* A.endOfInput
     where noZero = do
             A.char '.'
             mts <- A.decimal
             let m = length (digitsRev 10 mts)
             return $ (fromIntegral mts) / (10 ^ m)
 
-parseProtoString :: A.Parser ProtoString 
-parseProtoString = ProtoString <$> (string <* A.endOfInput)
+parseProtoString :: A.Parser ProtoString
+parseProtoString = (ProtoString . Just) <$> (string <* A.endOfInput)
     where string = toUtf8 <$> A.takeLazyByteString >>=
             \case (Right u) -> return u
                   (Left i)  -> fail $ "UTF8 decoding failure at " ++ (show i)
 
 parseProtoBinary :: A.Parser ProtoBinary
-parseProtoBinary = ProtoBinary <$> (A.takeLazyByteString <* A.endOfInput)
+parseProtoBinary = (ProtoBinary . Just) <$> (A.takeLazyByteString <* A.endOfInput)
 
 parseCell :: A.Parser ParseCell
-parseCell = A.choice [ (ParseReal   <$> parseProtoReal)
-                     , (ParseInt    <$> parseProtoInt)
+parseCell = A.choice [ (ParseInt    <$> parseProtoInt)
+                     , (ParseReal   <$> parseProtoReal)
                      , (ParseString <$> parseProtoString)
                      , (ParseBinary <$> parseProtoBinary)
                      ]
+
+parseTypeCheck :: ParseCellType -> ParseCell -> Bool
+parseTypeCheck ParseIntType (ParseInt       _) = True
+parseTypeCheck ParseRealType (ParseReal     _) = True
+parseTypeCheck ParseStringType (ParseString _) = True
+parseTypeCheck ParseBinaryType (ParseBinary _) = True
+parseTypeCheck _               _               = False

@@ -7,7 +7,7 @@ import qualified Data.Typeable as Prelude'
 import qualified Data.Data as Prelude'
 import qualified Text.ProtocolBuffers.Header as P'
  
-data ProtoBinary = ProtoBinary{parloadbytes :: !(P'.ByteString)}
+data ProtoBinary = ProtoBinary{parloadbytes :: !(P'.Maybe P'.ByteString)}
                  deriving (Prelude'.Show, Prelude'.Eq, Prelude'.Ord, Prelude'.Typeable, Prelude'.Data)
  
 instance P'.Mergeable ProtoBinary where
@@ -23,7 +23,7 @@ instance P'.Wire ProtoBinary where
        11 -> P'.prependMessageSize calc'Size
        _ -> P'.wireSizeErr ft' self'
     where
-        calc'Size = (P'.wireSizeReq 1 12 x'1)
+        calc'Size = (P'.wireSizeOpt 1 12 x'1)
   wirePut ft' self'@(ProtoBinary x'1)
    = case ft' of
        10 -> put'Fields
@@ -34,7 +34,7 @@ instance P'.Wire ProtoBinary where
     where
         put'Fields
          = do
-             P'.wirePutReq 10 12 x'1
+             P'.wirePutOpt 10 12 x'1
   wireGet ft'
    = case ft' of
        10 -> P'.getBareMessageWith update'Self
@@ -43,7 +43,7 @@ instance P'.Wire ProtoBinary where
     where
         update'Self wire'Tag old'Self
          = case wire'Tag of
-             10 -> Prelude'.fmap (\ !new'Field -> old'Self{parloadbytes = new'Field}) (P'.wireGet 12)
+             10 -> Prelude'.fmap (\ !new'Field -> old'Self{parloadbytes = Prelude'.Just new'Field}) (P'.wireGet 12)
              _ -> let (field'Number, wire'Type) = P'.splitWireTag wire'Tag in P'.unknown field'Number wire'Type old'Self
  
 instance P'.MessageAPI msg' (msg' -> ProtoBinary) ProtoBinary where
@@ -52,10 +52,10 @@ instance P'.MessageAPI msg' (msg' -> ProtoBinary) ProtoBinary where
 instance P'.GPB ProtoBinary
  
 instance P'.ReflectDescriptor ProtoBinary where
-  getMessageInfo _ = P'.GetMessageInfo (P'.fromDistinctAscList [10]) (P'.fromDistinctAscList [10])
+  getMessageInfo _ = P'.GetMessageInfo (P'.fromDistinctAscList []) (P'.fromDistinctAscList [10])
   reflectDescriptorInfo _
    = Prelude'.read
-      "DescriptorInfo {descName = ProtoName {protobufName = FIName \".protodb.ProtoBinary\", haskellPrefix = [], parentModule = [MName \"Protodb\"], baseName = MName \"ProtoBinary\"}, descFilePath = [\"Protodb\",\"ProtoBinary.hs\"], isGroup = False, fields = fromList [FieldInfo {fieldName = ProtoFName {protobufName' = FIName \".protodb.ProtoBinary.parloadbytes\", haskellPrefix' = [], parentModule' = [MName \"Protodb\",MName \"ProtoBinary\"], baseName' = FName \"parloadbytes\"}, fieldNumber = FieldId {getFieldId = 1}, wireTag = WireTag {getWireTag = 10}, packedTag = Nothing, wireTagLength = 1, isPacked = False, isRequired = True, canRepeat = False, mightPack = False, typeCode = FieldType {getFieldType = 12}, typeName = Nothing, hsRawDefault = Nothing, hsDefault = Nothing}], keys = fromList [], extRanges = [], knownKeys = fromList [], storeUnknown = False, lazyFields = False}"
+      "DescriptorInfo {descName = ProtoName {protobufName = FIName \".protodb.ProtoBinary\", haskellPrefix = [], parentModule = [MName \"Protodb\"], baseName = MName \"ProtoBinary\"}, descFilePath = [\"Protodb\",\"ProtoBinary.hs\"], isGroup = False, fields = fromList [FieldInfo {fieldName = ProtoFName {protobufName' = FIName \".protodb.ProtoBinary.parloadbytes\", haskellPrefix' = [], parentModule' = [MName \"Protodb\",MName \"ProtoBinary\"], baseName' = FName \"parloadbytes\"}, fieldNumber = FieldId {getFieldId = 1}, wireTag = WireTag {getWireTag = 10}, packedTag = Nothing, wireTagLength = 1, isPacked = False, isRequired = False, canRepeat = False, mightPack = False, typeCode = FieldType {getFieldType = 12}, typeName = Nothing, hsRawDefault = Nothing, hsDefault = Nothing}], keys = fromList [], extRanges = [], knownKeys = fromList [], storeUnknown = False, lazyFields = False}"
  
 instance P'.TextType ProtoBinary where
   tellT = P'.tellSubMessage

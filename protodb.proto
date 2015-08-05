@@ -14,22 +14,22 @@ enum ProtoType {
 
 message ProtoField {
 	required string fieldtitle   = 1;
-	required ProtoType fieldtype = 2 [default = Binary];
+	required ProtoType fieldtype = 2;
 	repeated uint32 vectorshape  = 3 [packed = true];
 }
 
 message ProtoInt {
-	required sint64 payloadint = 1;
+	optional sint64 payloadint = 1;
 }
 
 message ProtoReal {
-	required double payloaddouble = 1;
+	optional double payloaddouble = 1;
 }
 
 message ProtoString {
-	required string payloadstring = 1;
+	optional string payloadstring = 1;
 }
 
 message ProtoBinary {
-	required bytes parloadbytes = 1;
+	optional bytes parloadbytes = 1;
 }

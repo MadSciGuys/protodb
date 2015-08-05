@@ -7,7 +7,7 @@ import qualified Data.Typeable as Prelude'
 import qualified Data.Data as Prelude'
 import qualified Text.ProtocolBuffers.Header as P'
  
-data ProtoReal = ProtoReal{payloaddouble :: !(P'.Double)}
+data ProtoReal = ProtoReal{payloaddouble :: !(P'.Maybe P'.Double)}
                deriving (Prelude'.Show, Prelude'.Eq, Prelude'.Ord, Prelude'.Typeable, Prelude'.Data)
  
 instance P'.Mergeable ProtoReal where
@@ -23,7 +23,7 @@ instance P'.Wire ProtoReal where
        11 -> P'.prependMessageSize calc'Size
        _ -> P'.wireSizeErr ft' self'
     where
-        calc'Size = (P'.wireSizeReq 1 1 x'1)
+        calc'Size = (P'.wireSizeOpt 1 1 x'1)
   wirePut ft' self'@(ProtoReal x'1)
    = case ft' of
        10 -> put'Fields
@@ -34,7 +34,7 @@ instance P'.Wire ProtoReal where
     where
         put'Fields
          = do
-             P'.wirePutReq 9 1 x'1
+             P'.wirePutOpt 9 1 x'1
   wireGet ft'
    = case ft' of
        10 -> P'.getBareMessageWith update'Self
@@ -43,7 +43,7 @@ instance P'.Wire ProtoReal where
     where
         update'Self wire'Tag old'Self
          = case wire'Tag of
-             9 -> Prelude'.fmap (\ !new'Field -> old'Self{payloaddouble = new'Field}) (P'.wireGet 1)
+             9 -> Prelude'.fmap (\ !new'Field -> old'Self{payloaddouble = Prelude'.Just new'Field}) (P'.wireGet 1)
              _ -> let (field'Number, wire'Type) = P'.splitWireTag wire'Tag in P'.unknown field'Number wire'Type old'Self
  
 instance P'.MessageAPI msg' (msg' -> ProtoReal) ProtoReal where
@@ -52,10 +52,10 @@ instance P'.MessageAPI msg' (msg' -> ProtoReal) ProtoReal where
 instance P'.GPB ProtoReal
  
 instance P'.ReflectDescriptor ProtoReal where
-  getMessageInfo _ = P'.GetMessageInfo (P'.fromDistinctAscList [9]) (P'.fromDistinctAscList [9])
+  getMessageInfo _ = P'.GetMessageInfo (P'.fromDistinctAscList []) (P'.fromDistinctAscList [9])
   reflectDescriptorInfo _
    = Prelude'.read
-      "DescriptorInfo {descName = ProtoName {protobufName = FIName \".protodb.ProtoReal\", haskellPrefix = [], parentModule = [MName \"Protodb\"], baseName = MName \"ProtoReal\"}, descFilePath = [\"Protodb\",\"ProtoReal.hs\"], isGroup = False, fields = fromList [FieldInfo {fieldName = ProtoFName {protobufName' = FIName \".protodb.ProtoReal.payloaddouble\", haskellPrefix' = [], parentModule' = [MName \"Protodb\",MName \"ProtoReal\"], baseName' = FName \"payloaddouble\"}, fieldNumber = FieldId {getFieldId = 1}, wireTag = WireTag {getWireTag = 9}, packedTag = Nothing, wireTagLength = 1, isPacked = False, isRequired = True, canRepeat = False, mightPack = False, typeCode = FieldType {getFieldType = 1}, typeName = Nothing, hsRawDefault = Nothing, hsDefault = Nothing}], keys = fromList [], extRanges = [], knownKeys = fromList [], storeUnknown = False, lazyFields = False}"
+      "DescriptorInfo {descName = ProtoName {protobufName = FIName \".protodb.ProtoReal\", haskellPrefix = [], parentModule = [MName \"Protodb\"], baseName = MName \"ProtoReal\"}, descFilePath = [\"Protodb\",\"ProtoReal.hs\"], isGroup = False, fields = fromList [FieldInfo {fieldName = ProtoFName {protobufName' = FIName \".protodb.ProtoReal.payloaddouble\", haskellPrefix' = [], parentModule' = [MName \"Protodb\",MName \"ProtoReal\"], baseName' = FName \"payloaddouble\"}, fieldNumber = FieldId {getFieldId = 1}, wireTag = WireTag {getWireTag = 9}, packedTag = Nothing, wireTagLength = 1, isPacked = False, isRequired = False, canRepeat = False, mightPack = False, typeCode = FieldType {getFieldType = 1}, typeName = Nothing, hsRawDefault = Nothing, hsDefault = Nothing}], keys = fromList [], extRanges = [], knownKeys = fromList [], storeUnknown = False, lazyFields = False}"
  
 instance P'.TextType ProtoReal where
   tellT = P'.tellSubMessage
