@@ -6,7 +6,7 @@ import qualified Prelude as Prelude'
 import qualified Data.Typeable as Prelude'
 import qualified Data.Data as Prelude'
 import qualified Text.ProtocolBuffers.Header as P'
-import qualified Protodb.ProtoType as Protodb (ProtoType)
+import qualified ProtoDB.Types.ProtoType as Protodb (ProtoType)
  
 data ProtoField = ProtoField{fieldtitle :: !(P'.Utf8), fieldtype :: !(Protodb.ProtoType), vectorshape :: !(P'.Seq P'.Word32)}
                 deriving (Prelude'.Show, Prelude'.Eq, Prelude'.Ord, Prelude'.Typeable, Prelude'.Data)

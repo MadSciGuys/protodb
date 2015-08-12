@@ -26,7 +26,7 @@ import ProtoDB.Types.ProtoBinary
 import ProtoDB.Types.ProtoInt
 import ProtoDB.Types.ProtoReal
 import ProtoDB.Types.ProtoString
-import ProtoDB.Types.ProtoDateType
+import ProtoDB.Types.ProtoDateTime
 import ProtoDB.Types.ProtoType
 import ProtoDB.Types.ProtoField
 import ProtoDB.Types.ProtoDB
