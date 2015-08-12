@@ -16,6 +16,7 @@ module ProtoDB.Types (
   , ProtoDB(..)
   , ProtoBinary(..)
   , ProtoString(..)
+  , ProtoDateTime(..)
   , ProtoReal(..)
   , ProtoInt(..)
   , ProtoCell(..)
@@ -25,14 +26,16 @@ import ProtoDB.Types.ProtoBinary
 import ProtoDB.Types.ProtoInt
 import ProtoDB.Types.ProtoReal
 import ProtoDB.Types.ProtoString
+import ProtoDB.Types.ProtoDateType
 import ProtoDB.Types.ProtoType
 import ProtoDB.Types.ProtoField
 import ProtoDB.Types.ProtoDB
 import ProtoDB.Types.ProtoBinary
 
 -- | Polymorphic datablock cell type.
-data ProtoCell = ProtoIntCell    ProtoInt
-               | ProtoRealCell   ProtoReal
-               | ProtoStringCell ProtoString
-               | ProtoBinaryCell ProtoBinary
+data ProtoCell = ProtoIntCell      ProtoInt
+               | ProtoRealCell     ProtoReal
+               | ProtoStringCell   ProtoString
+               | ProtoDateTimeCell ProtoDateTime
+               | ProtoBinaryCell   ProtoBinary
                deriving (Eq, Ord, Show)

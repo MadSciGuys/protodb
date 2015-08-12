@@ -6,10 +6,11 @@ message ProtoDB {
 }
 
 enum ProtoType {
-	Int    = 1; // Encoded as 'sint64'
-	Real   = 2; // Encoded as 'double'
-	String = 3; // Encoded as 'string'
-	Binary = 4; // Encoded as 'bytes'
+	Int      = 1; // Encoded as 'sint64'
+	Real     = 2; // Encoded as 'double'
+	String   = 3; // Encoded as 'string'
+	DateTime = 4; // Encoded as 'uint64'
+	Binary   = 5; // Encoded as 'bytes'
 }
 
 message ProtoField {
@@ -28,6 +29,10 @@ message ProtoReal {
 
 message ProtoString {
 	optional string payloadstring = 1;
+}
+
+message ProtoDateTime {
+	optional uint64 payloaddatetime = 1;
 }
 
 message ProtoBinary {
