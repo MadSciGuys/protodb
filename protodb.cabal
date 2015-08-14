@@ -21,6 +21,7 @@ library
                      , ProtoDB.Serializer
                      , ProtoDB.Types
                      , ProtoDB.Types.ProtoString
+                     , ProtoDB.Types.ProtoDateTime
                      , ProtoDB.Types.ProtoType
                      , ProtoDB.Types.ProtoReal
                      , ProtoDB.Types.ProtoDB
