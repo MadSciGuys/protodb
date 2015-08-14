@@ -17,6 +17,8 @@ module ProtoDB.Parser where
 
 import Control.Applicative
 
+import Control.Monad
+
 import Control.DeepSeq
 
 import GHC.Generics (Generic)
@@ -37,11 +39,14 @@ import qualified Data.Attoparsec.ByteString.Lazy  as AL
 
 import qualified Data.ByteString.Lazy.Char8 as B
 
+emptyCell :: (Maybe a -> b) -> A.Parser b
+emptyCell c = A.endOfInput >> return (c Nothing)
+
 parseProtoInt :: A.Parser ProtoInt
-parseProtoInt = (ProtoInt . Just) <$> (A.decimal <* A.endOfInput)
+parseProtoInt = emptyCell ProtoInt <|> (ProtoInt . Just) <$> (A.decimal <* A.endOfInput)
 
 parseProtoReal :: A.Parser ProtoReal
-parseProtoReal = (ProtoReal . Just) <$> A.choice [noZero, A.double] <* A.endOfInput
+parseProtoReal = emptyCell ProtoReal <|> (ProtoReal . Just) <$> A.choice [noZero, A.double] <* A.endOfInput
     where noZero = do
             A.char '.'
             mts <- A.decimal
@@ -49,25 +54,26 @@ parseProtoReal = (ProtoReal . Just) <$> A.choice [noZero, A.double] <* A.endOfIn
             return $ (fromIntegral mts) / (10 ^ m)
 
 parseProtoString :: A.Parser ProtoString
-parseProtoString = (ProtoString . Just) <$> (string <* A.endOfInput)
+parseProtoString = emptyCell ProtoString <|> (ProtoString . Just) <$> (string <* A.endOfInput)
     where string = toUtf8 <$> A.takeLazyByteString >>=
             \case (Right u) -> return u
                   (Left i)  -> fail $ "UTF8 decoding failure at " ++ (show i)
 
 -- | Please help.
 parseProtoDateTime :: A.Parser ProtoDateTime
-parseProtoDateTime = fail "Date/Time parser not implemented. Please help."
+parseProtoDateTime = emptyCell ProtoDateTime <|> fail "Date/Time parser not implemented. Please help."
 
 parseProtoBinary :: A.Parser ProtoBinary
-parseProtoBinary = (ProtoBinary . Just) <$> (A.takeLazyByteString <* A.endOfInput)
+parseProtoBinary = emptyCell ProtoBinary <|> (ProtoBinary . Just) <$> (A.takeLazyByteString <* A.endOfInput)
 
-parseProtoCell :: A.Parser ProtoCell
-parseProtoCell = A.choice [ (ProtoIntCell      <$> parseProtoInt)
-                          , (ProtoRealCell     <$> parseProtoReal)
-                          , (ProtoDateTimeCell <$> parseProtoDateTime)
-                          , (ProtoStringCell   <$> parseProtoString)
-                          , (ProtoBinaryCell   <$> parseProtoBinary)
-                          ]
+parseProtoCell :: A.Parser (Maybe ProtoCell)
+parseProtoCell = (A.endOfInput >> return Nothing) <|> Just <$>
+    A.choice [ (ProtoIntCell      <$> parseProtoInt)
+             , (ProtoRealCell     <$> parseProtoReal)
+             , (ProtoDateTimeCell <$> parseProtoDateTime)
+             , (ProtoStringCell   <$> parseProtoString)
+             , (ProtoBinaryCell   <$> parseProtoBinary)
+             ]
 
 data CellTypeGuess = CellTypeGuess {
     cellInt      :: !Int
@@ -100,8 +106,7 @@ finalGuess (CellTypeGuess i r s d b) = if (i == r) && (r == s) && (s == d) && (d
 
 firstRowHeuristic :: [B.ByteString] -> [Maybe ProtoCellType]
 firstRowHeuristic = map ((protoCellType <$>) . parseForType)
-    where parseForType bs = if B.null bs then Nothing
-                                         else (AL.maybeResult . AL.parse parseProtoCell) bs
+    where parseForType bs = (join . AL.maybeResult . AL.parse parseProtoCell) bs
 
 tallyRowHeuristic' :: [[B.ByteString]] -> [Maybe ProtoCellType]
 tallyRowHeuristic' (r:rs) = let l              = length r
