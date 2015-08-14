@@ -20,6 +20,8 @@ module ProtoDB.Types (
   , ProtoReal(..)
   , ProtoInt(..)
   , ProtoCell(..)
+  , ProtoCellType(..)
+  , protoCellType
   ) where
 
 import ProtoDB.Types.ProtoBinary
@@ -39,3 +41,17 @@ data ProtoCell = ProtoIntCell      ProtoInt
                | ProtoDateTimeCell ProtoDateTime
                | ProtoBinaryCell   ProtoBinary
                deriving (Eq, Ord, Show)
+
+data ProtoCellType = ProtoIntType
+                   | ProtoRealType
+                   | ProtoStringType
+                   | ProtoDateTimeType
+                   | ProtoBinaryType
+                   deriving (Eq, Ord, Show)
+
+protoCellType :: ProtoCell -> ProtoCellType
+protoCellType (ProtoIntCell _)      = ProtoIntType
+protoCellType (ProtoRealCell _)     = ProtoRealType
+protoCellType (ProtoStringCell _)   = ProtoStringType
+protoCellType (ProtoDateTimeCell _) = ProtoDateTimeType
+protoCellType (ProtoBinaryCell _)   = ProtoBinaryType

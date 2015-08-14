@@ -25,37 +25,17 @@ import Data.Int
 
 import Data.Digits (digitsRev)
 
-import ProtoDB.Types.ProtoBinary
-import ProtoDB.Types.ProtoInt
-import ProtoDB.Types.ProtoReal
-import ProtoDB.Types.ProtoString
-import ProtoDB.Types.ProtoDateTime
-import ProtoDB.Types.ProtoType
-import ProtoDB.Types.ProtoField
-import ProtoDB.Types.ProtoBinary
+import Data.List (foldl', sortBy)
+
+import ProtoDB.Types
 
 import Text.ProtocolBuffers.Basic (toUtf8)
 
 import qualified Data.Attoparsec.ByteString       as A
 import qualified Data.Attoparsec.ByteString.Char8 as A
+import qualified Data.Attoparsec.ByteString.Lazy  as AL
 
-data ParseCell = ParseInt    ProtoInt
-               | ParseReal   ProtoReal
-               | ParseString ProtoString
-               | ParseBinary ProtoBinary
-               deriving (Eq, Show)
-
-data ParseCellType = ParseIntType
-                   | ParseRealType
-                   | ParseStringType
-                   | ParseBinaryType
-                   deriving (Eq, Ord, Show, Generic, NFData)
-
-cellType :: ParseCell -> ParseCellType
-cellType (ParseInt    _) = ParseIntType
-cellType (ParseReal   _) = ParseRealType
-cellType (ParseString _) = ParseStringType
-cellType (ParseBinary _) = ParseBinaryType
+import qualified Data.ByteString.Lazy.Char8 as B
 
 parseProtoInt :: A.Parser ProtoInt
 parseProtoInt = (ProtoInt . Just) <$> (A.decimal <* A.endOfInput)
@@ -74,19 +54,65 @@ parseProtoString = (ProtoString . Just) <$> (string <* A.endOfInput)
             \case (Right u) -> return u
                   (Left i)  -> fail $ "UTF8 decoding failure at " ++ (show i)
 
+-- | Please help.
+parseProtoDateTime :: A.Parser ProtoDateTime
+parseProtoDateTime = fail "Date/Time parser not implemented. Please help."
+
 parseProtoBinary :: A.Parser ProtoBinary
 parseProtoBinary = (ProtoBinary . Just) <$> (A.takeLazyByteString <* A.endOfInput)
 
-parseCell :: A.Parser ParseCell
-parseCell = A.choice [ (ParseInt    <$> parseProtoInt)
-                     , (ParseReal   <$> parseProtoReal)
-                     , (ParseString <$> parseProtoString)
-                     , (ParseBinary <$> parseProtoBinary)
-                     ]
+parseProtoCell :: A.Parser ProtoCell
+parseProtoCell = A.choice [ (ProtoIntCell      <$> parseProtoInt)
+                          , (ProtoRealCell     <$> parseProtoReal)
+                          , (ProtoDateTimeCell <$> parseProtoDateTime)
+                          , (ProtoStringCell   <$> parseProtoString)
+                          , (ProtoBinaryCell   <$> parseProtoBinary)
+                          ]
 
-parseTypeCheck :: ParseCellType -> ParseCell -> Bool
-parseTypeCheck ParseIntType (ParseInt       _) = True
-parseTypeCheck ParseRealType (ParseReal     _) = True
-parseTypeCheck ParseStringType (ParseString _) = True
-parseTypeCheck ParseBinaryType (ParseBinary _) = True
-parseTypeCheck _               _               = False
+data CellTypeGuess = CellTypeGuess {
+    cellInt      :: !Int
+  , cellReal     :: !Int
+  , cellString   :: !Int
+  , cellDateTime :: !Int
+  , cellBinary   :: !Int
+  } deriving (Eq, Show)
+
+initCellTypeGuess = CellTypeGuess 0 0 0 0 0
+
+tallyGuess :: Maybe ProtoCellType -> CellTypeGuess -> CellTypeGuess
+tallyGuess Nothing                  ctg                       = ctg
+tallyGuess (Just ProtoIntType)      (CellTypeGuess i r s d b) = CellTypeGuess (1+i) r s d b
+tallyGuess (Just ProtoRealType)     (CellTypeGuess i r s d b) = CellTypeGuess i (1+r) s d b
+tallyGuess (Just ProtoStringType)   (CellTypeGuess i r s d b) = CellTypeGuess i r (1+s) d b
+tallyGuess (Just ProtoDateTimeType) (CellTypeGuess i r s d b) = CellTypeGuess i r s (1+d) b
+tallyGuess (Just ProtoBinaryType)   (CellTypeGuess i r s d b) = CellTypeGuess i r s d (1+b)
+
+finalGuess :: CellTypeGuess -> Maybe ProtoCellType
+finalGuess (CellTypeGuess i r s d b) = if (i == r) && (r == s) && (s == d) && (d == b)
+    then Nothing
+    else Just $ (fst . head . sortBy (\(_, a) (_, b) -> compare a b)) cs
+    where cs = [ (ProtoIntType,      i)
+               , (ProtoRealType,     r)
+               , (ProtoStringType,   s)
+               , (ProtoDateTimeType, d)
+               , (ProtoBinaryType,   b)
+               ]
+
+firstRowHeuristic :: [B.ByteString] -> [Maybe ProtoCellType]
+firstRowHeuristic = map ((protoCellType <$>) . parseForType)
+    where parseForType bs = if B.null bs then Nothing
+                                         else (AL.maybeResult . AL.parse parseProtoCell) bs
+
+tallyRowHeuristic' :: [[B.ByteString]] -> [Maybe ProtoCellType]
+tallyRowHeuristic' (r:rs) = let l              = length r
+                                ins ts bs      = (seqList ts) `seq` zipWith tallyGuess (firstRowHeuristic bs) ts
+                                e              = replicate l initCellTypeGuess
+                                seqList []     = []
+                                seqList (x:xs) = x `seq` seqList xs
+                           in map finalGuess $ foldl' ins e (r:rs)
+
+tallyRowHeuristic :: [[B.ByteString]] -> [Maybe ProtoCellType]
+tallyRowHeuristic (r:rs) = let l   = length r
+                               ins = zipWith tallyGuess . firstRowHeuristic
+                               e   = replicate l initCellTypeGuess
+                           in map finalGuess $ foldr ins e (r:rs)
