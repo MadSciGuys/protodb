@@ -14,7 +14,12 @@ functions for serialization, principally intended for converting CSV files.
 {-# LANGUAGE LambdaCase, FlexibleInstances, UndecidableInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
-module ProtoDB.Serializer where
+module ProtoDB.Serializer (
+    putCollection
+  , putArray
+  , tare1, tare2, tare3, tare4
+  , putCell )
+where
 
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BLC
@@ -50,7 +55,7 @@ putArray :: (Foldable f)
   -> f ProtoCell 
   -> PutBlob
 putArray title pcType toVecShape cells = do
-  lenMessagePutM 
+  lenMessagePutM
     $ ProtoField (Utf8 title) pcType (Q.fromList $ toVecShape cells)
   mapM_ putCell cells
 
@@ -80,25 +85,3 @@ putCell = \case
   ProtoDateTimeCell v -> p v
   ProtoBinaryCell   v -> p v
   where p = lenMessagePutM
-
-{-
-class ProtoPut a where
-  toBlob :: a -> PutBlob
-
-instance ProtoPut ProtoCell where
-  toBlob = lenMessagePutM
-
-newtype PutInt n = PutInt n
-instance (Integral n) => ProtoPut (PutInt n) where
-  toBlob (PutInt n) = lenMessagePutM $ ProtoInt $ Just $ fromIntegral n
-
-newtype PutFloat x = PutFloat x
-instance (Real x) => ProtoPut (PutFloat x) where
-  toBlob (PutFloat x) = lenMessagePutM $ ProtoReal $ Just $ realToFrac x
-
-instance ProtoPut Utf8 where
-  toBlob = lenMessagePutM . ProtoString . Just
-
-instance ProtoPut BL.ByteString where
-  toBlob = lenMessagePutM . ProtoBinary . Just
--}
