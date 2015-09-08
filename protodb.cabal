@@ -39,6 +39,8 @@ library
                      , containers
                      , protoblob
                      , multiset
+                     , effusion
+                     , hourglass
                      , deepseq
                      , parallel
   hs-source-dirs:      src
