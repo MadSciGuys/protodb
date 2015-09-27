@@ -18,6 +18,8 @@ cabal-version:       >=1.10
 library
   exposed-modules:     ProtoDB
                      , ProtoDB.Parser
+                     , ProtoDB.Writer
+                     , ProtoDB.Reader
                      , ProtoDB.Serializer
                      , ProtoDB.Types
                      , ProtoDB.Types.ProtoString
@@ -43,6 +45,7 @@ library
                      , deepseq
                      , parallel
                      , array
+                     , text
   hs-source-dirs:      src
   ghc-options:         -O2
   default-language:    Haskell2010
