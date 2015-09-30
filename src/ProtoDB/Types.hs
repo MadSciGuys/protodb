@@ -27,7 +27,6 @@ module ProtoDB.Types (
   , protoTypeMatch
   ) where
 
-import ProtoDB.Types.ProtoBinary
 import ProtoDB.Types.ProtoInt
 import ProtoDB.Types.ProtoReal
 import ProtoDB.Types.ProtoString
