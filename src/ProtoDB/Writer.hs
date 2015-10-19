@@ -67,13 +67,12 @@ writeDB :: WritableDB -> PutBlob
 writeDB w@(WritableDB _ fs cs) = pdb >> pfs >> pcs
     where pdb = lenMessagePutM (toProtoDB w)
           pfs = mapM_ (lenMessagePutM . toProtoField) fs
-          --ts  = map protoCellTypeProtoType fs
           pcs = putRow fs cs
-          putRow []      []                            = return ()
-          putRow []      cs                            = putRow fs cs
-          putRow ((WritableField _ pct []):ts') (c:cs) = putCell pct c >> putRow ts' cs
-          putRow ((WritableField _ pct vs):ts') cs     = (mapM_ (putCell pct) $ take (product vs) cs)
-                                                       >> putRow ts' cs
+          putRow []      []                           = return ()
+          putRow []      cs                           = putRow fs cs
+          putRow ((WritableField _ pct []):ts) (c:cs) = putCell pct c >> putRow ts cs
+          putRow ((WritableField _ pct vs):ts) cs     = (mapM_ (putCell pct) $ take (product vs) cs)
+                                                      >> putRow ts cs
           putCell pct c = if pct `protoTypeMatch` c
                           then putProtoCell c
                           else error "writeDB: type mismatch."
