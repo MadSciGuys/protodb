@@ -126,7 +126,7 @@ tallyGuess (Just ProtoBinaryType)   (CellTypeGuess i r s d b) = CellTypeGuess i 
 finalGuess :: CellTypeGuess -> Maybe ProtoCellType
 finalGuess (CellTypeGuess i r s d b) = if (i == r) && (r == s) && (s == d) && (d == b)
     then Nothing
-    else Just $ (fst . head . sortBy (\(_, a) (_, b) -> compare a b)) cs
+    else Just $ (fst . head . sortBy (\(_, a) (_, b) -> compare b a)) cs
     where cs = [ (ProtoIntType,      i)
                , (ProtoRealType,     r)
                , (ProtoStringType,   s)
