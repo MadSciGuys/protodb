@@ -1,0 +1,7 @@
+flags: {}
+packages:
+- '.' 
+- '../effusion'
+- '../protoblob'
+extra-deps: []
+resolver: lts-3.10
