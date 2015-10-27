@@ -15,7 +15,9 @@ module ProtoDB.Reader (
   , ReadDB(..)
   , readDB
   , readRow
+  , readRowIndex
   , forceReadDB
+  , forceReadDBIndex
   ) where
 
 --import Data.Either
@@ -76,7 +78,20 @@ readRow = mapM readCell
           readCell ProtoDateTimeType = fmap ProtoDateTimeCell lenMessageGetM
           readCell ProtoBinaryType   = fmap ProtoDateTimeCell lenMessageGetM
 
+-- | Return not only the row, but the row start byte offset and size in bytes.
+readRowIndex :: [ProtoCellType] -> GetBlob ([ProtoCell], Int, Int)
+readRowIndex ts = do
+    s <- fromIntegral <$> bytesRead
+    r <- readRow ts
+    f <- fromIntegral <$> bytesRead
+    return (r, s, f)
+
 forceReadDB :: GetBlob (ReadDB, [[ProtoCell]])
 forceReadDB = readDB >>= (\rdb -> readRows (map rfType (rdbFields rdb)) >>= (\rs -> return (rdb, rs)))
     where readRows ts = isReallyEmpty >>= \case True  -> return []
                                                 False -> liftM2 (:) (readRow ts) (readRows ts)
+
+forceReadDBIndex :: GetBlob (ReadDB, [([ProtoCell], Int, Int)])
+forceReadDBIndex = readDB >>= (\rdb -> readRows (map rfType (rdbFields rdb)) >>= (\rs -> return (rdb, rs)))
+    where readRows ts = isReallyEmpty >>= \case True  -> return []
+                                                False -> liftM2 (:) (readRowIndex ts) (readRows ts)
