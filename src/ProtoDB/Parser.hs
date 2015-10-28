@@ -227,17 +227,26 @@ tallyRowHeuristic' (r:rs) = let l              = length r
                                 seqList (x:xs) = x `seq` seqList xs
                            in map finalGuess $ foldl' ins e (r:rs)
 
---tallyRowHeuristicPar :: Int -> [[B.ByteString]] -> [Maybe ProtoCellType]
---tallyRowHeuristicPar c (r:rs) = let l              = length r
---                                    ins ts cs      = (seqList ts) `seq` zipWith tallyGuess cs ts
---                                    e              = replicate l initCellTypeGuess
---                                    seqList []     = []
---                                    seqList (x:xs) = x `seq` seqList xs
---                           in map finalGuess $ foldl' ins e $ (map firstRowHeuristic (r:rs) `using` parBuffer c (evalList rdeepseq))
+-- | Parse a complete CSV document, given the types of each column.
+parseCSV :: [ProtoCellType] -> AL.Parser [ProtoCell]
+parseCSV ts = do
+    AL.manyTill A.anyChar A.endOfLine
+    parseCSVBody ts
 
---lenParseAnyCellPutM :: ProtoCell -> PutBlob
---lenParseAnyCellPutM (ProtoInt      i) = lenMessageUnsafePutM i
---lenParseAnyCellPutM (ProtoReal     r) = lenMessageUnsafePutM r
---lenParseAnyCellPutM (ProtoString   s) = lenMessageUnsafePutM s
---lenParseAnyCellPutM (ProtoDateTime d) = lenMessageUnsafePutM d
---lenParseAnyCellPutM (ProtoBinary   b) = lenMessageUnsafePutM b
+-- | Parse the body of a CSV document, omitting a title header, given the types
+--   of each column.
+parseCSVBody :: [ProtoCellType] -> AL.Parser [ProtoCell]
+parseCSVBody (t:ts) = do
+    concat <$> ((:) <$> row
+                    <*> AL.manyTill (A.endOfLine *> row)
+                                    (AL.endOfInput <|> A.endOfLine *> AL.endOfInput))
+    where
+        row :: AL.Parser [ProtoCell]
+        row = sequence (cell t : map ((A.char ',' *>) . cell) ts)
+
+        cell :: ProtoCellType -> AL.Parser ProtoCell
+        cell ProtoIntType      = ProtoIntCell      <$> parseProtoIntD      (const False)
+        cell ProtoRealType     = ProtoRealCell     <$> parseProtoRealD     (const False)
+        cell ProtoDateTimeType = ProtoDateTimeCell <$> parseProtoDateTimeD (const False)
+        cell ProtoStringType   = ProtoStringCell   <$> parseProtoStringD (\c -> c == '\n' || c == '\r' || c == ',')
+        cell ProtoBinaryType   = ProtoBinaryCell   <$> parseProtoBinaryD (\c -> c == '\n' || c == '\r' || c == ',')
