@@ -41,6 +41,12 @@ import qualified Data.Attoparsec.ByteString.Char8 as A
 import qualified Data.Attoparsec.ByteString.Lazy  as AL
 
 import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.Text as T
+import qualified Data.ByteString.Lazy as BL
+import Data.ProtoBlob
+import ProtoDB.Writer
+import Data.Text.Lazy (toStrict)
+import Data.Text.Lazy.Encoding (decodeUtf8)
 
 -- | Parse an empty cell as "missing data," i.e. 'Nothing' inside of a ProtoDB
 --   type constructor.
@@ -226,6 +232,26 @@ tallyRowHeuristic' (r:rs) = let l              = length r
                                 seqList []     = []
                                 seqList (x:xs) = x `seq` seqList xs
                            in map finalGuess $ foldl' ins e (r:rs)
+
+-- | Given the title and contents of a Datablock as a CSV, return either an
+--   error or the contents protocol buffer Datablock.
+csvToProto :: T.Text -> BL.ByteString -> Either String BL.ByteString
+csvToProto title csv = runPutBlob <$> writeDB <$> (WritableDB <$> pure title
+                                                              <*> fields
+                                                              <*> (AL.eitherResult . flip AL.parse csv =<< parseCSV <$> tys))
+    where
+        rows :: [[BL.ByteString]]
+        rows = map (B.split ',') $ B.lines csv
+
+        -- | WARNING: 'titles' involves converting a lazy Text to a strict Text.
+        titles :: [T.Text]
+        titles = map (toStrict . decodeUtf8) $ head rows
+
+        tys :: Either String [ProtoCellType]
+        tys = mapM (maybe (Left "Unable to guess type of CSV column.") Right) (tallyRowHeuristic $ tail rows)
+
+        fields :: Either String [WritableField]
+        fields = tys >>= return . map ($ []) . map (uncurry WritableField) . zip titles
 
 -- | Parse a complete CSV document, given the types of each column.
 parseCSV :: [ProtoCellType] -> AL.Parser [ProtoCell]
