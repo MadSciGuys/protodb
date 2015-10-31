@@ -248,7 +248,7 @@ csvToProto title csv = runPutBlob <$> writeDB <$> (WritableDB <$> pure title
         titles = map (toStrict . decodeUtf8) $ head rows
 
         tys :: Either String [ProtoCellType]
-        tys = mapM (maybe (Left "Unable to guess type of CSV column.") Right) (tallyRowHeuristic $ tail rows)
+        tys = mapM (maybe (Left "Unable to guess type of CSV column.") Right) (tallyRowHeuristic' $ tail rows)
 
         fields :: Either String [WritableField]
         fields = tys >>= return . map ($ []) . map (uncurry WritableField) . zip titles
