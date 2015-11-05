@@ -51,7 +51,7 @@ data ProtoCellType = ProtoIntType
                    | ProtoStringType
                    | ProtoDateTimeType
                    | ProtoBinaryType
-                   deriving (Eq, Ord, Show)
+                   deriving (Eq, Ord, Show, Read)
 
 protoCellType :: ProtoCell -> ProtoCellType
 protoCellType (ProtoIntCell _)      = ProtoIntType

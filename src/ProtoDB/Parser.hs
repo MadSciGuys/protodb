@@ -215,13 +215,14 @@ firstRowHeuristic :: [B.ByteString] -> [Maybe ProtoCellType]
 firstRowHeuristic = map ((protoCellType <$>) . parseForType)
     where parseForType bs = (join . AL.maybeResult . AL.parse parseProtoCell) bs
 
--- | "Guess" the field types of a sample of datablock records. This function is
---   lazy; use it for small or streaming data sets.
+-- | "Guess" the field types of a sample of datablock records. 
+--   This function is lazy on the input list of bytestrings; 
+--   use it for large or streaming data sets.
 tallyRowHeuristic :: [[B.ByteString]] -> [Maybe ProtoCellType]
 tallyRowHeuristic (r:rs) = let l   = length r
-                               ins = zipWith tallyGuess . firstRowHeuristic
+                               ins = flip $ zipWith tallyGuess . firstRowHeuristic
                                e   = replicate l initCellTypeGuess
-                           in map finalGuess $ foldr ins e (r:rs)
+                           in map finalGuess $ foldl' ins e (r:rs)
 
 -- | Strict implementation of 'tallyRowHeuristic'. This function is strict; use
 --   it for large data sets.
@@ -236,9 +237,10 @@ tallyRowHeuristic' (r:rs) = let l              = length r
 -- | Given the title and contents of a Datablock as a CSV, return either an
 --   error or the contents protocol buffer Datablock.
 csvToProto :: T.Text -> BL.ByteString -> Either String BL.ByteString
-csvToProto title csv = runPutBlob <$> writeDB <$> (WritableDB <$> pure title
-                                                              <*> fields
-                                                              <*> (AL.eitherResult . flip AL.parse csv =<< parseCSV <$> tys))
+csvToProto title csv = runPutBlob . writeDB 
+  <$> ( WritableDB <$> pure title <*> fields 
+          <*> (AL.eitherResult . flip AL.parse csv =<< parseCSV <$> tys)
+      )
     where
         rows :: [[BL.ByteString]]
         rows = map (B.split ',') $ B.lines csv
@@ -248,10 +250,11 @@ csvToProto title csv = runPutBlob <$> writeDB <$> (WritableDB <$> pure title
         titles = map (toStrict . decodeUtf8) $ head rows
 
         tys :: Either String [ProtoCellType]
-        tys = mapM (maybe (Left "Unable to guess type of CSV column.") Right) (tallyRowHeuristic $ tail rows)
+        tys = mapM (maybe (Left "Unable to guess type of CSV column.") Right) 
+          $ tallyRowHeuristic $ tail rows
 
         fields :: Either String [WritableField]
-        fields = tys >>= return . map ($ []) . map (uncurry WritableField) . zip titles
+        fields = map ($ []) . map (uncurry WritableField) . zip titles <$> tys
 
 -- | Parse a complete CSV document, given the types of each column.
 parseCSV :: [ProtoCellType] -> AL.Parser [ProtoCell]
