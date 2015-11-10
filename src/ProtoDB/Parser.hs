@@ -18,35 +18,29 @@ their input.
 
 module ProtoDB.Parser where
 
-import Control.Applicative
-
-import Control.Monad
-
+import Control.Applicative 
 import Control.DeepSeq
-
-import GHC.Generics (Generic)
-
+import Control.Monad
 import Data.Int
-
 import Data.Digits (digitsRev)
-
 import Data.List (foldl', sortBy)
-
-import ProtoDB.Types
-
+import Data.Monoid ((<>), Monoid(..))
+import GHC.Generics (Generic)
 import Text.ProtocolBuffers.Basic (toUtf8)
 
 import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as A
 import qualified Data.Attoparsec.ByteString.Lazy  as AL
 
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.Text as T
-import qualified Data.ByteString.Lazy as BL
-import Data.ProtoBlob
 import ProtoDB.Writer
+import Data.ProtoBlob
 import Data.Text.Lazy (toStrict)
-import Data.Text.Lazy.Encoding (decodeUtf8)
+import Data.Text.Lazy.Encoding (decodeUtf8', decodeLatin1)
+
+import ProtoDB.Types 
 
 -- | Parse an empty cell as "missing data," i.e. 'Nothing' inside of a ProtoDB
 --   type constructor.
@@ -187,9 +181,29 @@ data CellTypeGuess = CellTypeGuess {
   , cellString   :: !Int
   , cellDateTime :: !Int
   , cellBinary   :: !Int
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read, NFData, Generic)
 
+initCellTypeGuess :: CellTypeGuess
 initCellTypeGuess = CellTypeGuess 0 0 0 0 0
+
+zipPad :: (Monoid m1, Monoid m2) => [m1] -> [m2] -> [(m1, m2)]
+zipPad (m1:m1s) (m2:m2s) = (m1    , m2    ) : zipPad m1s m2s
+zipPad (m1:m1s) []       = (m1    , mempty) : zipPad m1s []
+zipPad []       (m2:m2s) = (mempty, m2    ) : zipPad []  m2s
+zipPad [] [] = []
+
+instance Monoid CellTypeGuess where
+  mappend (CellTypeGuess i1 r1 s1 d1 b1) (CellTypeGuess i2 r2 s2 d2 b2) 
+    = CellTypeGuess (i1+i2) (r1+r2) (s1+s2) (d1+d2) (b1+b2)
+  mempty = initCellTypeGuess
+
+newtype CellBlock = CellBlock { openCellBlock :: [CellTypeGuess] }
+  deriving (Show, Read, NFData, Generic)
+
+instance Monoid CellBlock where
+  mappend (CellBlock ctgs1) (CellBlock ctgs2)
+    = CellBlock $ map (uncurry mappend) $ zipPad ctgs1 ctgs2
+  mempty = CellBlock []
 
 tallyGuess :: Maybe ProtoCellType -> CellTypeGuess -> CellTypeGuess
 tallyGuess Nothing                  ctg                       = ctg
@@ -220,19 +234,24 @@ firstRowHeuristic = map ((protoCellType <$>) . parseForType)
 --   use it for large or streaming data sets.
 tallyRowHeuristic :: [[B.ByteString]] -> [Maybe ProtoCellType]
 tallyRowHeuristic (r:rs) = let l   = length r
-                               ins = flip $ zipWith tallyGuess . firstRowHeuristic
+                               ins = zipWith tallyGuess . firstRowHeuristic
                                e   = replicate l initCellTypeGuess
-                           in map finalGuess $ foldl' ins e (r:rs)
+                           in map finalGuess $ foldr ins e (r:rs)
 
 -- | Strict implementation of 'tallyRowHeuristic'. This function is strict; use
 --   it for large data sets.
 tallyRowHeuristic' :: [[B.ByteString]] -> [Maybe ProtoCellType]
-tallyRowHeuristic' (r:rs) = let l              = length r
-                                ins ts bs      = (seqList ts) `seq` zipWith tallyGuess (firstRowHeuristic bs) ts
-                                e              = replicate l initCellTypeGuess
-                                seqList []     = []
-                                seqList (x:xs) = x `seq` seqList xs
-                           in map finalGuess $ foldl' ins e (r:rs)
+tallyRowHeuristic' = map finalGuess . tallyRows
+
+tallyRows :: [[B.ByteString]] -> [CellTypeGuess]
+tallyRows (r:rs) = let ins ts bs      = (seqList ts) `seq` zipWith tallyGuess (firstRowHeuristic bs) ts
+                       e              = replicate (length r) initCellTypeGuess
+                       seqList []     = []
+                       seqList (x:xs) = x `seq` seqList xs
+                  in foldl' ins e (r:rs)
+
+attemptDecode :: BL.ByteString -> T.Text
+attemptDecode bStr = toStrict $ either (const $ decodeLatin1 bStr) id $ decodeUtf8' bStr
 
 -- | Given the title and contents of a Datablock as a CSV, return either an
 --   error or the contents protocol buffer Datablock.
@@ -247,7 +266,7 @@ csvToProto title csv = runPutBlob . writeDB
 
         -- | WARNING: 'titles' involves converting a lazy Text to a strict Text.
         titles :: [T.Text]
-        titles = map (toStrict . decodeUtf8) $ head rows
+        titles = map attemptDecode $ head rows
 
         tys :: Either String [ProtoCellType]
         tys = mapM (maybe (Left "Unable to guess type of CSV column.") Right) (tallyRowHeuristic' $ tail rows)
