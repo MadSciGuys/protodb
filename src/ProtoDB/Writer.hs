@@ -9,7 +9,10 @@ Portability : POSIX
 -}
 
 module ProtoDB.Writer (
-    WritableField(..)
+    expandTypes
+  , mkProtoDB
+  , putProtoCell
+  , WritableField(..)
   , WritableDB(..)
   , writeDB
   ) where
@@ -49,7 +52,10 @@ textToUtf8 = either (error em) id . toUtf8 . B.fromStrict . TE.encodeUtf8
     where em = "textToUtf8: invalid UTF8"
 
 toProtoDB :: WritableDB -> ProtoDB
-toProtoDB (WritableDB t fs _) = ProtoDB (textToUtf8 t) (fromIntegral (length fs))
+toProtoDB (WritableDB t fs _) = mkProtoDB t fs
+
+mkProtoDB :: T.Text -> [WritableField] -> ProtoDB
+mkProtoDB t fs = ProtoDB (textToUtf8 t) (fromIntegral (length fs))
 
 toProtoField :: WritableField -> ProtoField
 toProtoField (WritableField t tp vs) = ProtoField (textToUtf8 t)

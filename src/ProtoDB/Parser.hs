@@ -283,17 +283,15 @@ parseCSV ts = do
 -- | Parse the body of a CSV document, omitting a title header, given the types
 --   of each column.
 parseCSVBody :: [ProtoCellType] -> AL.Parser [ProtoCell]
-parseCSVBody (t:ts) = do
-    concat <$> ((:) <$> row
-                    <*> AL.manyTill (A.endOfLine *> row)
-                                    (AL.endOfInput <|> A.endOfLine *> AL.endOfInput))
-    where
-        row :: AL.Parser [ProtoCell]
-        row = sequence (cell t : map ((A.char ',' *>) . cell) ts)
-
-        cell :: ProtoCellType -> AL.Parser ProtoCell
-        cell ProtoIntType      = ProtoIntCell      <$> parseProtoIntD      (const False)
-        cell ProtoRealType     = ProtoRealCell     <$> parseProtoRealD     (const False)
-        cell ProtoDateTimeType = ProtoDateTimeCell <$> parseProtoDateTimeD (const False)
-        cell ProtoStringType   = ProtoStringCell   <$> parseProtoStringD (\c -> c == '\n' || c == '\r' || c == ',')
-        cell ProtoBinaryType   = ProtoBinaryCell   <$> parseProtoBinaryD (\c -> c == '\n' || c == '\r' || c == ',')
+parseCSVBody pcts = concat <$> AL.manyTill row AL.endOfInput
+  where
+    isDelim c = c == '\n' || c == '\r' || c == ','
+    wrapParser valWrapper nothingWrapper parser 
+      = fmap valWrapper $ parser isDelim <|> return (nothingWrapper Nothing)
+    row :: AL.Parser [ProtoCell]
+    row = flip mapM pcts $ \case
+      ProtoIntType      -> wrapParser ProtoIntCell      ProtoInt      parseProtoIntD     
+      ProtoRealType     -> wrapParser ProtoRealCell     ProtoReal     parseProtoRealD    
+      ProtoDateTimeType -> wrapParser ProtoDateTimeCell ProtoDateTime parseProtoDateTimeD
+      ProtoStringType   -> wrapParser ProtoStringCell   ProtoString   parseProtoStringD  
+      ProtoBinaryType   -> wrapParser ProtoBinaryCell   ProtoBinary   parseProtoBinaryD  
