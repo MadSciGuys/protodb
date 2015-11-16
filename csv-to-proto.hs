@@ -13,15 +13,16 @@ import Data.List (uncons)
 import System.IO (IOMode(WriteMode), withFile)
 import System.Environment (getArgs)
 
-import CSVChunk (foldMapChunksFile, mapChunksFile)
+import CSVChunk (foldMapChunks, mapConcatChunks)
 import Data.ProtoBlob (lenMessagePutM)
 
-import ProtoDB.Parser (
-    tallyRowHeuristic', tallyRows, CellBlock(..)
-  , attemptDecode, finalGuess, parseCSVBody
+import ProtoDB.Parser ( tallyRowHeuristic', tallyRows
+  , CellBlock(..), attemptDecode, finalGuess, parseCSVBody
   )
 import ProtoDB.Types (ProtoCellType(ProtoStringType))
-import ProtoDB.Writer (WritableField(..), putProtoCell, mkProtoDB, expandTypes)
+import ProtoDB.Writer (
+    WritableField(..), putProtoCell, mkProtoDB, expandTypes, toProtoField
+  )
 
 errSelf :: String -> a
 errSelf = error . ("csv-type-profile.hs."++)
@@ -56,7 +57,11 @@ reWriteFile :: FilePath -> IO ()
 reWriteFile csv = withFile (csv++rewriteSuffix) WriteMode $ \ out -> do
   flds <- read <$> readFile (csv++profileSuffix)
   BLC.hPut out $ runPut $ lenMessagePutM $ mkProtoDB (T.pack csv) flds
-  mapChunksFile defChunkSize csv out $ \ _ -> reWriteChunk' $ expandTypes flds
+  BLC.hPut out $ runPut $ mapM_ (lenMessagePutM . toProtoField) flds
+  mapConcatChunks defChunkSize csv 
+    (const $ BC.empty)
+    (const $ reWriteChunk' $ expandTypes flds)
+    (BC.hPut out)
 
 reWriteChunk' :: [ProtoCellType] -> BC.ByteString -> BC.ByteString
 reWriteChunk' profile 
@@ -76,7 +81,7 @@ profileChunks chunkSize path = liftM2 (zipWith $ \ hdrFld fldType
     . uncons . BLC.lines <$> BLC.readFile path
   )
   (fmap (map (maybe ProtoStringType id . finalGuess) . openCellBlock)
-    $ foldMapChunksFile chunkSize path $ \ _
+    $ foldMapChunks chunkSize path $ \ _
     ->CellBlock . tallyRows . map (BLC.split ',') . BLC.lines . BLC.fromStrict
   )
 

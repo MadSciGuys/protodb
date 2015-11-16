@@ -12,6 +12,7 @@ module ProtoDB.Writer (
     expandTypes
   , mkProtoDB
   , putProtoCell
+  , toProtoField
   , WritableField(..)
   , WritableDB(..)
   , writeDB
