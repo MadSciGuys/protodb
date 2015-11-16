@@ -16,6 +16,7 @@ module ProtoDB.Reader (
   , readDB
   , readRow
   , readRowIndex
+  , lazyForceReadDB
   , forceReadDB
   , forceReadDBIndex
   ) where
@@ -30,6 +31,7 @@ import qualified Data.Sequence as S
 
 import Text.ProtocolBuffers.Basic
 import Text.ProtocolBuffers.Get
+import Text.ProtocolBuffers.WireMessage (runGetOnLazy)
 
 import ProtoDB.Types
 
@@ -85,6 +87,15 @@ readRowIndex ts = do
     r <- readRow ts
     f <- fromIntegral <$> bytesRead
     return (r, s, f)
+
+lazyForceReadDB :: B.ByteString -> (ReadDB, [[ProtoCell]])
+lazyForceReadDB = run' readDB $ \ rdb@(ReadDB _ flds _) cells -> 
+  let go remainder0 = if B.null remainder0 then [] else run' 
+        (readRow $ map rfType $ flds)
+        (\ row -> (row:) . go )
+        remainder0
+  in (rdb, go cells)
+  where run' getBlob next = either error (uncurry next) . runGetOnLazy getBlob
 
 forceReadDB :: GetBlob (ReadDB, [[ProtoCell]])
 forceReadDB = readDB >>= (\rdb -> readRows (map rfType (rdbFields rdb)) >>= (\rs -> return (rdb, rs)))
