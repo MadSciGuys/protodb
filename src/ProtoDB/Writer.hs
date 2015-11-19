@@ -9,7 +9,11 @@ Portability : POSIX
 -}
 
 module ProtoDB.Writer (
-    WritableField(..)
+    expandTypes
+  , mkProtoDB
+  , putProtoCell
+  , toProtoField
+  , WritableField(..)
   , WritableDB(..)
   , writeDB
   ) where
@@ -33,7 +37,7 @@ data WritableField = WritableField {
     wfTitle  :: T.Text
   , wfType   :: ProtoCellType
   , wfVector :: [Int]
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Read)
 
 data WritableDB = WritableDB {
     wdbTitle  :: T.Text
@@ -49,7 +53,10 @@ textToUtf8 = either (error em) id . toUtf8 . B.fromStrict . TE.encodeUtf8
     where em = "textToUtf8: invalid UTF8"
 
 toProtoDB :: WritableDB -> ProtoDB
-toProtoDB (WritableDB t fs _) = ProtoDB (textToUtf8 t) (fromIntegral (length fs))
+toProtoDB (WritableDB t fs _) = mkProtoDB t fs
+
+mkProtoDB :: T.Text -> [WritableField] -> ProtoDB
+mkProtoDB t fs = ProtoDB (textToUtf8 t) (fromIntegral (length fs))
 
 toProtoField :: WritableField -> ProtoField
 toProtoField (WritableField t tp vs) = ProtoField (textToUtf8 t)
@@ -63,16 +70,15 @@ putProtoCell (ProtoStringCell p)   = lenMessagePutM p
 putProtoCell (ProtoDateTimeCell p) = lenMessagePutM p
 putProtoCell (ProtoBinaryCell p)   = lenMessagePutM p
 
+expandTypes :: [WritableField] -> [ProtoCellType]
+expandTypes = concatMap $ \ field@(WritableField _ cellType vectorShape) 
+  -> replicate (product vectorShape) cellType
+
 writeDB :: WritableDB -> PutBlob
-writeDB w@(WritableDB _ fs cs) = pdb >> pfs >> pcs
-    where pdb = lenMessagePutM (toProtoDB w)
-          pfs = mapM_ (lenMessagePutM . toProtoField) fs
-          pcs = putRow fs cs
-          putRow []      []                           = return ()
-          putRow []      cs                           = putRow fs cs
-          putRow ((WritableField _ pct []):ts) (c:cs) = putCell pct c >> putRow ts cs
-          putRow ((WritableField _ pct vs):ts) cs     = (mapM_ (putCell pct) $ take (product vs) cs)
-                                                      >> putRow ts cs
-          putCell pct c = if pct `protoTypeMatch` c
+writeDB w@(WritableDB _ fields cells) = do
+  lenMessagePutM $ toProtoDB w
+  mapM_ (lenMessagePutM . toProtoField) fields
+  mapM_ (uncurry putCell) $ zip (concat $ repeat $ expandTypes fields) cells
+  where putCell pct c = if pct `protoTypeMatch` c
                           then putProtoCell c
                           else error "writeDB: type mismatch."
