@@ -84,7 +84,7 @@ readRowIndex ts = do
     s <- fromIntegral <$> bytesRead
     r <- readRow ts
     f <- fromIntegral <$> bytesRead
-    return (r, s, f)
+    return (r, s, (f - s))
 
 forceReadDB :: GetBlob (ReadDB, [[ProtoCell]])
 forceReadDB = readDB >>= (\rdb -> readRows (map rfType (rdbFields rdb)) >>= (\rs -> return (rdb, rs)))
