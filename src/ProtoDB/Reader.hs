@@ -121,8 +121,8 @@ lazyForceReadDB = (readRows =<<) . readDB'
           go2 (i, (Partial cnt))    (c:cs) = go2 (i, cnt (Just c)) cs
           go2 (i, (Partial cnt))    []     = go2 (i, cnt Nothing) []
           go2 (i, (Finished c _ r)) []
-                    | B.null c             = Right []
-                    | otherwise            = (r:) <$> go2 (i, i) []
+                    | B.null c             = Right [r]
+                    | otherwise            = (r:) <$> go2 (i, i) [c]
           go2 (i, (Finished c _ r)) cs     = (r:) <$> go2 (i, i) (c:cs)
           dup :: a -> (a, a)
           dup x = (x, x)
@@ -148,9 +148,10 @@ lazyForceReadDBIndex = (readRows =<<) . readDB'
           go2 b (i, (Partial cnt))    (c:cs) = go2 b (i, cnt (Just c)) cs
           go2 b (i, (Partial cnt))    []     = go2 b (i, cnt Nothing) []
           go2 b (i, (Finished c b' r)) []
-                    | B.null c               = Right []
+                    | B.null c               = let b'' = fromIntegral b'
+                                               in Right [(r, b, b+b'')]
                     | otherwise              = let b'' = fromIntegral b'
-                                               in ((r, b, b+b''):) <$> go2 b'' (i, i) []
+                                               in ((r, b, b+b''):) <$> go2 b'' (i, i) [c]
           go2 b (i, (Finished c b' r)) cs    = let b'' = fromIntegral b'
                                                in ((r, b, b+b''):) <$> go2 b'' (i, i) (c:cs)
           dup :: a -> (a, a)
