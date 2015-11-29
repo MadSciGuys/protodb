@@ -18,7 +18,9 @@ module ProtoDB.Reader (
   , readRowIndex
   , lazyForceReadDB
   , forceReadDB
+  , lazyForceReadDB
   , forceReadDBIndex
+  , lazyForceReadDBIndex
   ) where
 
 --import Data.Either
