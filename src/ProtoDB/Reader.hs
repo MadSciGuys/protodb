@@ -112,12 +112,14 @@ lazyForceReadDB = (readRows =<<) . readDB'
           go1 :: Result ReadDB -> [B.ByteString] -> Either String ([B.ByteString], ReadDB)
           go1 (Failed _ e)       _      = Left e
           go1 (Partial cnt)      (c:cs) = go1 (cnt (Just c)) cs
+          go1 (Partial cnt)      []     = go1 (cnt Nothing) []
           go1 (Finished c _ rdb) cs     = Right (c:cs, rdb)
           readRows :: ([B.ByteString], ReadDB) -> Either String (ReadDB, [[ProtoCell]])
           readRows (cs, rdb) = (rdb,) <$> go2 (dup (runGet (readRow (map rfType (rdbFields rdb))) B.empty)) cs
           go2 :: (Result [ProtoCell], Result [ProtoCell]) -> [B.ByteString] -> Either String [[ProtoCell]]
           go2 (_, (Failed _ e))     _      = Left e
           go2 (i, (Partial cnt))    (c:cs) = go2 (i, cnt (Just c)) cs
+          go2 (i, (Partial cnt))    []     = go2 (i, cnt Nothing) []
           go2 (i, (Finished c _ r)) []
                     | B.null c             = Right []
                     | otherwise            = (r:) <$> go2 (i, i) []
@@ -137,12 +139,14 @@ lazyForceReadDBIndex = (readRows =<<) . readDB'
           go1 :: Result ReadDB -> [B.ByteString] -> Either String ([B.ByteString], ReadDB)
           go1 (Failed _ e)       _      = Left e
           go1 (Partial cnt)      (c:cs) = go1 (cnt (Just c)) cs
+          go1 (Partial cnt)      []     = go1 (cnt Nothing) []
           go1 (Finished c _ rdb) cs     = Right (c:cs, rdb)
           readRows :: ([B.ByteString], ReadDB) -> Either String (ReadDB, [([ProtoCell], Int, Int)])
           readRows (cs, rdb) = (rdb,) <$> go2 (rdbStart rdb) (dup (runGet (readRow (map rfType (rdbFields rdb))) B.empty)) cs
           go2 :: Int -> (Result [ProtoCell], Result [ProtoCell]) -> [B.ByteString] -> Either String [([ProtoCell], Int, Int)]
           go2 _ (_, (Failed _ e))     _      = Left e
           go2 b (i, (Partial cnt))    (c:cs) = go2 b (i, cnt (Just c)) cs
+          go2 b (i, (Partial cnt))    []     = go2 b (i, cnt Nothing) []
           go2 b (i, (Finished c b' r)) []
                     | B.null c               = Right []
                     | otherwise              = let b'' = fromIntegral b'
