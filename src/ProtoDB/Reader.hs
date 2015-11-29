@@ -8,7 +8,7 @@ Stability   : Provisional
 Portability : POSIX
 -}
 
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, TupleSections #-}
 
 module ProtoDB.Reader (
     ReadField(..)
@@ -37,6 +37,7 @@ import ProtoDB.Types
 
 import Data.ProtoBlob
 
+import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Lazy.Char8 as B
 
 import qualified Data.Text          as T
@@ -88,21 +89,63 @@ readRowIndex ts = do
     f <- fromIntegral <$> bytesRead
     return (r, s, (f - s))
 
-lazyForceReadDB :: B.ByteString -> (ReadDB, [[ProtoCell]])
-lazyForceReadDB = run' readDB $ \ rdb@(ReadDB _ flds _) cells -> 
-  let go remainder0 = if B.null remainder0 then [] else run' 
-        (readRow $ map rfType $ flds)
-        (\ row -> (row:) . go )
-        remainder0
-  in (rdb, go cells)
-  where run' getBlob next = either error (uncurry next) . runGetOnLazy getBlob
+--lazyForceReadDB :: B.ByteString -> (ReadDB, [[ProtoCell]])
+--lazyForceReadDB = run' readDB $ \ rdb@(ReadDB _ flds _) cells -> 
+--  let go remainder0 = if B.null remainder0 then [] else run' 
+--        (readRow $ map rfType $ flds)
+--        (\ row -> (row:) . go )
+--        remainder0
+--  in (rdb, go cells)
+--  where run' getBlob next = either error (uncurry next) . runGetOnLazy getBlob
 
 forceReadDB :: GetBlob (ReadDB, [[ProtoCell]])
 forceReadDB = readDB >>= (\rdb -> readRows (map rfType (rdbFields rdb)) >>= (\rs -> return (rdb, rs)))
     where readRows ts = isReallyEmpty >>= \case True  -> return []
                                                 False -> liftM2 (:) (readRow ts) (readRows ts)
 
+lazyForceReadDB :: B.ByteString -> Either String (ReadDB, [[ProtoCell]])
+lazyForceReadDB = (readRows =<<) . readDB'
+    where readDB' :: B.ByteString -> Either String ([B.ByteString], ReadDB)
+          readDB' = go1 (runGet readDB B.empty) . map B.fromStrict . B.toChunks
+          go1 :: Result ReadDB -> [B.ByteString] -> Either String ([B.ByteString], ReadDB)
+          go1 (Failed _ e)       _      = Left e
+          go1 (Partial cnt)      (c:cs) = go1 (cnt (Just c)) cs
+          go1 (Finished c _ rdb) cs     = Right (c:cs, rdb)
+          readRows :: ([B.ByteString], ReadDB) -> Either String (ReadDB, [[ProtoCell]])
+          readRows (cs, rdb) = (rdb,) <$> go2 (dup (runGet (readRow (map rfType (rdbFields rdb))) B.empty)) cs
+          go2 :: (Result [ProtoCell], Result [ProtoCell]) -> [B.ByteString] -> Either String [[ProtoCell]]
+          go2 (_, (Failed _ e))     _      = Left e
+          go2 (i, (Partial cnt))    (c:cs) = go2 (i, cnt (Just c)) cs
+          go2 (i, (Finished c _ r)) []
+                    | B.null c             = Right []
+                    | otherwise            = (r:) <$> go2 (i, i) []
+          go2 (i, (Finished c _ r)) cs     = (r:) <$> go2 (i, i) (c:cs)
+          dup :: a -> (a, a)
+          dup x = (x, x)
+
 forceReadDBIndex :: GetBlob (ReadDB, [([ProtoCell], Int, Int)])
 forceReadDBIndex = readDB >>= (\rdb -> readRows (map rfType (rdbFields rdb)) >>= (\rs -> return (rdb, rs)))
     where readRows ts = isReallyEmpty >>= \case True  -> return []
                                                 False -> liftM2 (:) (readRowIndex ts) (readRows ts)
+
+lazyForceReadDBIndex :: B.ByteString -> Either String (ReadDB, [([ProtoCell], Int, Int)])
+lazyForceReadDBIndex = (readRows =<<) . readDB'
+    where readDB' :: B.ByteString -> Either String ([B.ByteString], ReadDB)
+          readDB' = go1 (runGet readDB B.empty) . map B.fromStrict . B.toChunks
+          go1 :: Result ReadDB -> [B.ByteString] -> Either String ([B.ByteString], ReadDB)
+          go1 (Failed _ e)       _      = Left e
+          go1 (Partial cnt)      (c:cs) = go1 (cnt (Just c)) cs
+          go1 (Finished c _ rdb) cs     = Right (c:cs, rdb)
+          readRows :: ([B.ByteString], ReadDB) -> Either String (ReadDB, [([ProtoCell], Int, Int)])
+          readRows (cs, rdb) = (rdb,) <$> go2 (rdbStart rdb) (dup (runGet (readRow (map rfType (rdbFields rdb))) B.empty)) cs
+          go2 :: Int -> (Result [ProtoCell], Result [ProtoCell]) -> [B.ByteString] -> Either String [([ProtoCell], Int, Int)]
+          go2 _ (_, (Failed _ e))     _      = Left e
+          go2 b (i, (Partial cnt))    (c:cs) = go2 b (i, cnt (Just c)) cs
+          go2 b (i, (Finished c b' r)) []
+                    | B.null c               = Right []
+                    | otherwise              = let b'' = fromIntegral b'
+                                               in ((r, b, b+b''):) <$> go2 b'' (i, i) []
+          go2 b (i, (Finished c b' r)) cs    = let b'' = fromIntegral b'
+                                               in ((r, b, b+b''):) <$> go2 b'' (i, i) (c:cs)
+          dup :: a -> (a, a)
+          dup x = (x, x)
